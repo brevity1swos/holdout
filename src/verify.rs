@@ -2,6 +2,7 @@ use serde::Serialize;
 
 use crate::candidate::Candidate;
 use crate::grade::Divergence;
+use crate::procedure::{check_procedure, ProcedurePolicy};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct VerifyReport {
@@ -9,6 +10,8 @@ pub struct VerifyReport {
     pub passed: usize,
     pub pass_rate: f64,
     pub first_divergence: Option<Divergence>,
+    pub procedure_violations: usize,
+    pub first_violation: Option<String>,
     pub reward: f64,
 }
 
@@ -21,25 +24,44 @@ impl VerifyReport {
 /// Run `reference` and `candidate` on each input and compare their outputs.
 /// The reference is the live oracle; inputs the candidate never saw cannot be
 /// memorized. `reward` equals the pass rate.
+/// An optional `policy` checks the candidate's stderr trace; a run that matches
+/// the reference but trips the policy is disqualified (corrupt success).
 pub fn verify(
     reference: &Candidate,
     candidate: &Candidate,
     inputs: &[String],
+    policy: Option<&ProcedurePolicy>,
 ) -> std::io::Result<VerifyReport> {
     let mut passed = 0usize;
     let mut first_divergence: Option<Divergence> = None;
+    let mut procedure_violations = 0usize;
+    let mut first_violation: Option<String> = None;
+
     for (i, input) in inputs.iter().enumerate() {
         let expected = reference.run(input)?;
-        let actual = candidate.run(input)?;
-        if actual == expected {
+        let (actual, trace) = candidate.run_capturing(input)?;
+        let output_match = actual == expected;
+        let violations = match policy {
+            Some(p) => check_procedure(&trace, p),
+            None => Vec::new(),
+        };
+        if output_match && violations.is_empty() {
             passed += 1;
-        } else if first_divergence.is_none() {
-            first_divergence = Some(Divergence {
-                case: format!("g{i}"),
-                input: input.clone(),
-                expected,
-                actual,
-            });
+        } else {
+            if !output_match && first_divergence.is_none() {
+                first_divergence = Some(Divergence {
+                    case: format!("g{i}"),
+                    input: input.clone(),
+                    expected,
+                    actual,
+                });
+            }
+            if !violations.is_empty() {
+                procedure_violations += 1;
+                if first_violation.is_none() {
+                    first_violation = Some(format!("input {input:?}: {}", violations.join("; ")));
+                }
+            }
         }
     }
     let total = inputs.len();
@@ -53,6 +75,8 @@ pub fn verify(
         passed,
         pass_rate,
         first_divergence,
+        procedure_violations,
+        first_violation,
         reward: pass_rate,
     })
 }
@@ -71,6 +95,7 @@ mod tests {
             &Candidate::from_shell("awk {print($1*$1)}"),
             &Candidate::from_shell("awk {print($1^2)}"),
             &inputs(),
+            None,
         )
         .unwrap();
         assert_eq!(r.total, 4);
@@ -87,6 +112,7 @@ mod tests {
             &Candidate::from_shell("awk {print($1*$1)}"),
             &Candidate::from_shell("awk {print($1+$1)}"),
             &inputs(),
+            None,
         )
         .unwrap();
         assert!(!r.ok());
@@ -96,5 +122,41 @@ mod tests {
         assert_eq!(d.input, "3");
         assert_eq!(d.expected, "9");
         assert_eq!(d.actual, "6");
+    }
+
+    #[test]
+    fn corrupt_success_is_disqualified() {
+        let policy = ProcedurePolicy {
+            forbidden: vec!["FORBIDDEN".into()],
+            required: vec![],
+        };
+        let reference = Candidate::from_shell("cat");
+        // `tee /dev/stderr` copies stdin to BOTH stdout (matches cat) and stderr (the trace).
+        // The trace therefore contains the input; a forbidden input is a corrupt success.
+        let candidate = Candidate::from_shell("tee /dev/stderr");
+
+        // Clean input: output matches, trace clean → passes.
+        let clean = verify(
+            &reference,
+            &candidate,
+            &["hello".to_string()],
+            Some(&policy),
+        )
+        .unwrap();
+        assert!(clean.ok());
+        assert_eq!(clean.procedure_violations, 0);
+
+        // Forbidden input: output STILL matches cat, but the trace contains "FORBIDDEN"
+        // → disqualified (corrupt success).
+        let corrupt = verify(
+            &reference,
+            &candidate,
+            &["FORBIDDEN".to_string()],
+            Some(&policy),
+        )
+        .unwrap();
+        assert!(!corrupt.ok());
+        assert_eq!(corrupt.procedure_violations, 1);
+        assert!(corrupt.first_violation.is_some());
     }
 }

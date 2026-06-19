@@ -14,6 +14,7 @@ fn generated_inputs_drive_live_differential_verification() {
         &reference,
         &Candidate::from_shell("awk {print($1^2)}"),
         &inputs,
+        None,
     )
     .unwrap();
     assert!(good.ok());
@@ -24,6 +25,7 @@ fn generated_inputs_drive_live_differential_verification() {
         &reference,
         &Candidate::from_shell("awk {print($1+$1)}"),
         &inputs,
+        None,
     )
     .unwrap();
     assert!(!bad.ok());
