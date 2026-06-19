@@ -15,4 +15,4 @@ pub use candidate::Candidate;
 pub use error::HoldoutError;
 pub use grade::{grade, Divergence, GradeOpts, GradeReport};
 pub use oracle::{Case, OracleKind, OracleSpec};
-pub use record::parse_inputs;
+pub use record::{parse_inputs, record, RecordError};
