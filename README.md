@@ -35,6 +35,24 @@ are held out). Because the expected outputs come from captured real behavior,
 there is nothing to overfit and no examiner to collude with — memorization is
 defeated by the held-out inputs the agent never sees.
 
+### Live differential verification (fresh inputs)
+
+```sh
+holdout verify \
+  --reference './old_version' \
+  --candidate './new_version' \
+  --generator './gen_inputs' \
+  --n 200
+```
+
+`verify` runs `--generator` to produce fresh inputs, then runs `--reference`
+and `--candidate` on each and compares. There is no stored oracle to seal or
+edit: the reference is the live oracle, and the inputs are generated at verify
+time, so a candidate cannot be tuned to pass a known set. Exit `0` = every
+generated input matched, `1` = a divergence (with the first one reported),
+`2` = the generator produced no inputs or a run failed. The generator owns all
+input variation — `holdout` contains no randomness.
+
 ## Status
 
 Phase-1 MVP. Oracle kind: `HeldoutCases` only. Perturbation is reorder+rename
