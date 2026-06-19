@@ -9,12 +9,16 @@ pub mod error;
 pub mod grade;
 pub mod oracle;
 pub mod perturb;
+pub mod procedure;
 pub mod record;
+pub mod runlog;
 pub mod verify;
 
 pub use candidate::Candidate;
 pub use error::HoldoutError;
 pub use grade::{grade, Divergence, GradeOpts, GradeReport};
 pub use oracle::{Case, OracleKind, OracleSpec};
+pub use procedure::{check_procedure, ProcedurePolicy};
 pub use record::{generate, parse_inputs, record, RecordError};
+pub use runlog::{append_log, digest, read_log, Digest, LogRecord, Trend};
 pub use verify::{verify, VerifyReport};
