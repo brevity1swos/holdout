@@ -31,6 +31,16 @@ impl From<std::io::Error> for RecordError {
     }
 }
 
+pub fn generate(generator: &str, cap: usize) -> Result<Vec<String>, RecordError> {
+    let cand = Candidate::from_shell(generator);
+    let out = cand.run("")?;
+    let mut inputs = parse_inputs(&out);
+    if cap > 0 && inputs.len() > cap {
+        inputs.truncate(cap);
+    }
+    Ok(inputs)
+}
+
 pub fn record(
     reference: &str,
     inputs: &[String],
@@ -72,6 +82,15 @@ mod tests {
     fn parses_one_input_per_nonempty_line() {
         let got = parse_inputs("2\n3\n\n5\n");
         assert_eq!(got, vec!["2".to_string(), "3".to_string(), "5".to_string()]);
+    }
+
+    #[test]
+    fn generate_runs_command_and_caps() {
+        // `seq 1 5` emits 1..5 on its own lines.
+        let all = generate("seq 1 5", 0).unwrap();
+        assert_eq!(all, vec!["1", "2", "3", "4", "5"]);
+        let capped = generate("seq 1 5", 3).unwrap();
+        assert_eq!(capped, vec!["1", "2", "3"]);
     }
 
     use crate::oracle::OracleKind;
