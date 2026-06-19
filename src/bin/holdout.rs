@@ -4,7 +4,8 @@ use std::process::ExitCode;
 use clap::{Parser, Subcommand};
 use holdout::oracle::{self, OracleSpec};
 use holdout::{
-    generate, grade, parse_inputs, perturb::perturb, record, verify, Candidate, GradeOpts,
+    append_log, digest, generate, grade, parse_inputs, perturb::perturb, read_log, record, verify,
+    Candidate, GradeOpts, LogRecord, ProcedurePolicy, Trend,
 };
 
 #[derive(Parser)]
@@ -57,6 +58,15 @@ enum Cmd {
         n: usize,
         #[arg(long)]
         json: bool,
+        #[arg(long)]
+        policy: Option<PathBuf>,
+        #[arg(long)]
+        log: Option<PathBuf>,
+    },
+    /// Render a human-readable digest of a run log (for mid-loop interruption).
+    Watch {
+        #[arg(long)]
+        log: PathBuf,
     },
 }
 
@@ -165,29 +175,60 @@ fn run_verify(
     generator: &str,
     n: usize,
     json: bool,
+    policy_path: &Option<PathBuf>,
+    log_path: &Option<PathBuf>,
 ) -> anyhow::Result<Outcome> {
     let inputs = generate(generator, n)?;
     if inputs.is_empty() {
         anyhow::bail!("generator produced no inputs");
     }
+    let policy: Option<ProcedurePolicy> = match policy_path {
+        Some(p) => Some(serde_json::from_slice(&std::fs::read(p)?)?),
+        None => None,
+    };
     let report = verify(
         &Candidate::from_shell(reference),
         &Candidate::from_shell(candidate),
         &inputs,
+        policy.as_ref(),
     )?;
+
+    if let Some(lp) = log_path {
+        let note = report.first_violation.clone().or_else(|| {
+            report
+                .first_divergence
+                .as_ref()
+                .map(|d| format!("diverged @ {}", d.case))
+        });
+        append_log(
+            lp,
+            LogRecord {
+                attempt: 0,
+                mode: "verify".into(),
+                total: report.total,
+                passed: report.passed,
+                reward: report.reward,
+                ok: report.ok(),
+                note,
+            },
+        )?;
+    }
 
     if json {
         println!("{}", serde_json::to_string(&report)?);
     } else {
         println!(
-            "verified {}/{} fresh inputs  reward {:.2}",
-            report.passed, report.total, report.reward
+            "verified {}/{} fresh inputs  reward {:.2}  procedure-violations {}",
+            report.passed, report.total, report.reward, report.procedure_violations
         );
         if let Some(d) = &report.first_divergence {
             println!(
                 "first divergence @ {}: input {:?} reference {:?} candidate {:?}",
                 d.case, d.input, d.expected, d.actual
             );
+        }
+        if let Some(v) = &report.first_violation {
+            println!("first procedure violation: {v}");
         }
     }
 
@@ -196,6 +237,34 @@ fn run_verify(
     } else {
         Outcome::Failed
     })
+}
+
+fn run_watch(log: &Path) -> anyhow::Result<()> {
+    let records = read_log(log)?;
+    let d = digest(&records);
+    let trend = match d.trend {
+        Trend::Converged => "CONVERGED",
+        Trend::Improving => "IMPROVING",
+        Trend::Stuck => "STUCK",
+        Trend::Regressing => "REGRESSING",
+        Trend::Empty => "EMPTY",
+    };
+    println!(
+        "holdout watch — {} attempts | latest reward {:.2} | best {:.2} | {}",
+        d.attempts, d.latest_reward, d.best_reward, trend
+    );
+    for r in &records {
+        let mark = if r.ok { "ok" } else { "  " };
+        let note = r.note.as_deref().unwrap_or("");
+        println!(
+            "  #{:<3} reward {:.2} {} {}",
+            r.attempt, r.reward, mark, note
+        );
+    }
+    if let Some(flag) = &d.drift_flag {
+        println!("  ⚠ {flag}");
+    }
+    Ok(())
 }
 
 fn main() -> ExitCode {
@@ -240,9 +309,18 @@ fn main() -> ExitCode {
             generator,
             n,
             json,
-        } => match run_verify(reference, candidate, generator, *n, *json) {
+            policy,
+            log,
+        } => match run_verify(reference, candidate, generator, *n, *json, policy, log) {
             Ok(Outcome::Passed) => ExitCode::from(0),
             Ok(Outcome::Failed) => ExitCode::from(1),
+            Err(e) => {
+                eprintln!("error: {e:#}");
+                ExitCode::from(2)
+            }
+        },
+        Cmd::Watch { log } => match run_watch(log) {
+            Ok(()) => ExitCode::from(0),
             Err(e) => {
                 eprintln!("error: {e:#}");
                 ExitCode::from(2)
