@@ -3,7 +3,7 @@ use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
 use holdout::oracle::{self, OracleSpec};
-use holdout::{grade, perturb::perturb, Candidate, GradeOpts};
+use holdout::{grade, parse_inputs, perturb::perturb, record, Candidate, GradeOpts};
 
 #[derive(Parser)]
 #[command(name = "holdout", version, about = "A verifier you cannot game.")]
@@ -18,6 +18,17 @@ enum Cmd {
     Seal {
         #[arg(long)]
         oracle: PathBuf,
+    },
+    /// Capture a trusted reference's behavior into a sealed GoldenTrace oracle.
+    Record {
+        #[arg(long)]
+        reference: String,
+        #[arg(long)]
+        inputs: PathBuf,
+        #[arg(long, default_value_t = 0)]
+        visible: usize,
+        #[arg(long)]
+        out: PathBuf,
     },
     /// Grade a candidate command against the sealed oracle.
     Grade {
@@ -44,6 +55,35 @@ fn run_seal(oracle: &Path) -> anyhow::Result<()> {
     };
     std::fs::write(&seal_path, &hex)?;
     println!("{hex}");
+    Ok(())
+}
+
+fn run_record(
+    reference: &str,
+    inputs: &PathBuf,
+    visible: usize,
+    out: &PathBuf,
+) -> anyhow::Result<()> {
+    let text = std::fs::read_to_string(inputs)?;
+    let parsed = parse_inputs(&text);
+    let spec = record(reference, &parsed, visible)?;
+    let json = serde_json::to_string_pretty(&spec)?;
+    std::fs::write(out, &json)?;
+    let hex = oracle::seal_hex(&spec);
+    let seal_path = {
+        let mut p = out.clone().into_os_string();
+        p.push(".seal");
+        PathBuf::from(p)
+    };
+    std::fs::write(&seal_path, &hex)?;
+    println!(
+        "recorded {} visible + {} heldout cases from {:?} -> {:?} (sealed {})",
+        spec.visible.len(),
+        spec.heldout.len(),
+        reference,
+        out,
+        &hex[..16]
+    );
     Ok(())
 }
 
@@ -107,6 +147,18 @@ fn run_grade(
 fn main() -> ExitCode {
     let cli = Cli::parse();
     match &cli.command {
+        Cmd::Record {
+            reference,
+            inputs,
+            visible,
+            out,
+        } => match run_record(reference, inputs, *visible, out) {
+            Ok(()) => ExitCode::from(0),
+            Err(e) => {
+                eprintln!("error: {e:#}");
+                ExitCode::from(2)
+            }
+        },
         Cmd::Seal { oracle } => match run_seal(oracle) {
             Ok(()) => ExitCode::from(0),
             Err(e) => {
