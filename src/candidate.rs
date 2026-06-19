@@ -15,12 +15,12 @@ impl Candidate {
         Candidate { program, args }
     }
 
-    pub fn run(&self, input: &str) -> std::io::Result<String> {
+    pub fn run_capturing(&self, input: &str) -> std::io::Result<(String, String)> {
         let mut child = Command::new(&self.program)
             .args(&self.args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(Stdio::piped())
             .spawn()?;
         child
             .stdin
@@ -28,9 +28,18 @@ impl Candidate {
             .expect("stdin piped")
             .write_all(input.as_bytes())?;
         let output = child.wait_with_output()?;
-        Ok(String::from_utf8_lossy(&output.stdout)
-            .trim_end()
-            .to_string())
+        Ok((
+            String::from_utf8_lossy(&output.stdout)
+                .trim_end()
+                .to_string(),
+            String::from_utf8_lossy(&output.stderr)
+                .trim_end()
+                .to_string(),
+        ))
+    }
+
+    pub fn run(&self, input: &str) -> std::io::Result<String> {
+        Ok(self.run_capturing(input)?.0)
     }
 }
 
@@ -52,5 +61,14 @@ mod tests {
         let c = Candidate::from_shell("tr a-z A-Z");
         let out = c.run("abc").unwrap();
         assert_eq!(out, "ABC");
+    }
+
+    #[test]
+    fn run_capturing_returns_stdout_and_stderr() {
+        // sh writes "out" to stdout and "trace" to stderr.
+        let c = Candidate::from_shell("sh");
+        let (out, err) = c.run_capturing("echo out; echo trace 1>&2\n").unwrap();
+        assert_eq!(out, "out");
+        assert_eq!(err, "trace");
     }
 }
