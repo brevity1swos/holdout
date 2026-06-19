@@ -10,9 +10,11 @@ pub mod grade;
 pub mod oracle;
 pub mod perturb;
 pub mod record;
+pub mod verify;
 
 pub use candidate::Candidate;
 pub use error::HoldoutError;
 pub use grade::{grade, Divergence, GradeOpts, GradeReport};
 pub use oracle::{Case, OracleKind, OracleSpec};
 pub use record::{parse_inputs, record, RecordError};
+pub use verify::{verify, VerifyReport};
