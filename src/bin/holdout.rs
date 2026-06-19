@@ -3,7 +3,9 @@ use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
 use holdout::oracle::{self, OracleSpec};
-use holdout::{grade, parse_inputs, perturb::perturb, record, Candidate, GradeOpts};
+use holdout::{
+    generate, grade, parse_inputs, perturb::perturb, record, verify, Candidate, GradeOpts,
+};
 
 #[derive(Parser)]
 #[command(name = "holdout", version, about = "A verifier you cannot game.")]
@@ -42,6 +44,19 @@ enum Cmd {
         gap_tolerance: f64,
         #[arg(long)]
         no_perturb: bool,
+    },
+    /// Verify a candidate against a live reference over freshly generated inputs.
+    Verify {
+        #[arg(long)]
+        reference: String,
+        #[arg(long)]
+        candidate: String,
+        #[arg(long)]
+        generator: String,
+        #[arg(long, default_value_t = 0)]
+        n: usize,
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -144,6 +159,45 @@ fn run_grade(
     })
 }
 
+fn run_verify(
+    reference: &str,
+    candidate: &str,
+    generator: &str,
+    n: usize,
+    json: bool,
+) -> anyhow::Result<Outcome> {
+    let inputs = generate(generator, n)?;
+    if inputs.is_empty() {
+        anyhow::bail!("generator produced no inputs");
+    }
+    let report = verify(
+        &Candidate::from_shell(reference),
+        &Candidate::from_shell(candidate),
+        &inputs,
+    )?;
+
+    if json {
+        println!("{}", serde_json::to_string(&report)?);
+    } else {
+        println!(
+            "verified {}/{} fresh inputs  reward {:.2}",
+            report.passed, report.total, report.reward
+        );
+        if let Some(d) = &report.first_divergence {
+            println!(
+                "first divergence @ {}: input {:?} reference {:?} candidate {:?}",
+                d.case, d.input, d.expected, d.actual
+            );
+        }
+    }
+
+    Ok(if report.ok() {
+        Outcome::Passed
+    } else {
+        Outcome::Failed
+    })
+}
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
     match &cli.command {
@@ -173,6 +227,20 @@ fn main() -> ExitCode {
             gap_tolerance,
             no_perturb,
         } => match run_grade(oracle, candidate, *json, *gap_tolerance, *no_perturb) {
+            Ok(Outcome::Passed) => ExitCode::from(0),
+            Ok(Outcome::Failed) => ExitCode::from(1),
+            Err(e) => {
+                eprintln!("error: {e:#}");
+                ExitCode::from(2)
+            }
+        },
+        Cmd::Verify {
+            reference,
+            candidate,
+            generator,
+            n,
+            json,
+        } => match run_verify(reference, candidate, generator, *n, *json) {
             Ok(Outcome::Passed) => ExitCode::from(0),
             Ok(Outcome::Failed) => ExitCode::from(1),
             Err(e) => {
