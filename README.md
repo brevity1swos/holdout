@@ -35,6 +35,26 @@ are held out). Because the expected outputs come from captured real behavior,
 there is nothing to overfit and no examiner to collude with — memorization is
 defeated by the held-out inputs the agent never sees.
 
+### Progress digest + procedure gating
+
+```sh
+# The loop appends a record each attempt; a human renders the digest anytime.
+holdout verify --reference ./ref --candidate ./cand --generator ./gen --log run.jsonl
+holdout watch --log run.jsonl
+#   holdout watch — 3 attempts | latest reward 0.20 | best 0.20 | STUCK
+#     ⚠ no improvement over last 3 attempts (reward 0.20) — consider interrupting
+
+# Procedure gating: disqualify "corrupt success" — output correct, but the
+# candidate's stderr trace shows a forbidden step.
+holdout verify --reference ./ref --candidate ./cand --generator ./gen --policy policy.json
+```
+
+`--policy` is a JSON `{ "forbidden": [...], "required": [...] }` checked against
+each candidate run's stderr (its trace channel). A run that matches the
+reference output but trips the policy is disqualified — outcome-only checks
+would have passed it. `watch` reads the run log and flags STUCK/REGRESSING
+trajectories so a human can interrupt a drifting loop.
+
 ### Live differential verification (fresh inputs)
 
 ```sh
