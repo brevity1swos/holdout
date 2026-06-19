@@ -13,11 +13,14 @@ pub struct Case {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum OracleKind {
     HeldoutCases,
+    GoldenTrace,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OracleSpec {
     pub kind: OracleKind,
+    #[serde(default)]
+    pub reference: Option<String>,
     pub visible: Vec<Case>,
     pub heldout: Vec<Case>,
 }
@@ -58,6 +61,33 @@ mod tests {
     use super::*;
 
     #[test]
+    fn golden_trace_kind_roundtrips_with_provenance() {
+        let spec = OracleSpec {
+            kind: OracleKind::GoldenTrace,
+            reference: Some("./old_impl".into()),
+            visible: vec![],
+            heldout: vec![Case {
+                name: "h1".into(),
+                input: "3".into(),
+                expected: "9".into(),
+            }],
+        };
+        let json = serde_json::to_string(&spec).unwrap();
+        let back: OracleSpec = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.kind, OracleKind::GoldenTrace);
+        assert_eq!(back.reference.as_deref(), Some("./old_impl"));
+    }
+
+    #[test]
+    fn mvp_oracle_without_reference_field_still_loads() {
+        // Backward-compat: MVP oracle JSON has no `reference` key.
+        let json = r#"{"kind":"HeldoutCases","visible":[],"heldout":[]}"#;
+        let spec: OracleSpec = serde_json::from_str(json).unwrap();
+        assert_eq!(spec.kind, OracleKind::HeldoutCases);
+        assert!(spec.reference.is_none());
+    }
+
+    #[test]
     fn loads_oracle_from_json() {
         let json = r#"{
             "kind": "HeldoutCases",
@@ -74,6 +104,7 @@ mod tests {
     fn canonical_bytes_are_stable() {
         let spec = OracleSpec {
             kind: OracleKind::HeldoutCases,
+            reference: None,
             visible: vec![],
             heldout: vec![Case {
                 name: "h1".into(),
@@ -88,6 +119,7 @@ mod tests {
     fn seal_detects_tampering() {
         let mut spec = OracleSpec {
             kind: OracleKind::HeldoutCases,
+            reference: None,
             visible: vec![],
             heldout: vec![Case {
                 name: "h1".into(),

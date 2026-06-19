@@ -17,6 +17,7 @@ pub fn perturb(spec: &OracleSpec, salt: u64) -> OracleSpec {
     }
     OracleSpec {
         kind: spec.kind.clone(),
+        reference: spec.reference.clone(),
         visible: spec.visible.clone(),
         heldout: cases,
     }
@@ -30,6 +31,7 @@ mod tests {
     fn spec() -> OracleSpec {
         OracleSpec {
             kind: OracleKind::HeldoutCases,
+            reference: None,
             visible: vec![],
             heldout: vec![
                 Case {

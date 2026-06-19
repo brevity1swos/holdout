@@ -87,6 +87,7 @@ mod tests {
     fn square_oracle() -> OracleSpec {
         OracleSpec {
             kind: OracleKind::HeldoutCases,
+            reference: None,
             visible: vec![Case {
                 name: "v1".into(),
                 input: "2".into(),
