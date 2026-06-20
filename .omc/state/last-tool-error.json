@@ -1,7 +1,0 @@
-{
-  "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"cargo clippy -- -D warnings 2>&1 && cargo fmt 2>&1\",\"timeout\":30000,\"description\":\"Clippy and fmt check before commits\"}",
-  "error": "Exit code 101\n    Checking holdout v0.1.0 (/Users/seongyongpark/project/brevity1swos/holdout)\nerror: writing `&PathBuf` instead of `&Path` involves a new object where a slice will do\n   --> src/bin/holdout.rs:242:19\n    |\n242 | fn run_watch(log: &PathBuf) -> anyhow::Result<()> {\n    |                   ^^^^^^^^\n    |\n    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.95.0/index.html#ptr_arg\n    = note: `-D clippy::ptr-arg` implied by `-D warnings`\n    = help...",
-  "timestamp": "2026-06-19T16:22:39.684Z",
-  "retry_count": 2
-}

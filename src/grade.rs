@@ -1,6 +1,7 @@
 use serde::Serialize;
 
 use crate::candidate::Candidate;
+use crate::error::HoldoutError;
 use crate::oracle::{Case, OracleSpec};
 
 #[derive(Debug, Clone)]
@@ -38,7 +39,10 @@ impl GradeReport {
 }
 
 /// Score one case set: fraction passing, plus the first divergence (if any).
-fn score_set(candidate: &Candidate, cases: &[Case]) -> std::io::Result<(f64, Option<Divergence>)> {
+fn score_set(
+    candidate: &Candidate,
+    cases: &[Case],
+) -> Result<(f64, Option<Divergence>), HoldoutError> {
     if cases.is_empty() {
         return Ok((1.0, None));
     }
@@ -64,7 +68,7 @@ pub fn grade(
     candidate: &Candidate,
     spec: &OracleSpec,
     _opts: &GradeOpts,
-) -> std::io::Result<GradeReport> {
+) -> Result<GradeReport, HoldoutError> {
     let (visible_score, _) = score_set(candidate, &spec.visible)?;
     let (heldout_score, first_divergence) = score_set(candidate, &spec.heldout)?;
     let delta_gap = (visible_score - heldout_score).max(0.0);

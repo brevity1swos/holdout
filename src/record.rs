@@ -1,6 +1,5 @@
-use std::fmt;
-
 use crate::candidate::Candidate;
+use crate::error::HoldoutError;
 use crate::oracle::{Case, OracleKind, OracleSpec};
 
 pub fn parse_inputs(text: &str) -> Vec<String> {
@@ -10,28 +9,7 @@ pub fn parse_inputs(text: &str) -> Vec<String> {
         .collect()
 }
 
-#[derive(Debug)]
-pub enum RecordError {
-    Run(std::io::Error),
-}
-
-impl fmt::Display for RecordError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            RecordError::Run(e) => write!(f, "failed to run reference: {e}"),
-        }
-    }
-}
-
-impl std::error::Error for RecordError {}
-
-impl From<std::io::Error> for RecordError {
-    fn from(e: std::io::Error) -> Self {
-        RecordError::Run(e)
-    }
-}
-
-pub fn generate(generator: &str, cap: usize) -> Result<Vec<String>, RecordError> {
+pub fn generate(generator: &str, cap: usize) -> Result<Vec<String>, HoldoutError> {
     let cand = Candidate::from_shell(generator);
     let out = cand.run("")?;
     let mut inputs = parse_inputs(&out);
@@ -45,7 +23,7 @@ pub fn record(
     reference: &str,
     inputs: &[String],
     visible_count: usize,
-) -> Result<OracleSpec, RecordError> {
+) -> Result<OracleSpec, HoldoutError> {
     let cand = Candidate::from_shell(reference);
     let mut visible = Vec::new();
     let mut heldout = Vec::new();

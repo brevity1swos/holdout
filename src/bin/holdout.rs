@@ -73,11 +73,7 @@ enum Cmd {
 fn run_seal(oracle: &Path) -> anyhow::Result<()> {
     let spec = OracleSpec::load(oracle)?;
     let hex = oracle::seal_hex(&spec);
-    let seal_path = {
-        let mut p = oracle.to_path_buf().into_os_string();
-        p.push(".seal");
-        PathBuf::from(p)
-    };
+    let seal_path = oracle::seal_path(oracle);
     std::fs::write(&seal_path, &hex)?;
     println!("{hex}");
     Ok(())
@@ -95,11 +91,7 @@ fn run_record(
     let json = serde_json::to_string_pretty(&spec)?;
     std::fs::write(out, &json)?;
     let hex = oracle::seal_hex(&spec);
-    let seal_path = {
-        let mut p = out.clone().into_os_string();
-        p.push(".seal");
-        PathBuf::from(p)
-    };
+    let seal_path = oracle::seal_path(out);
     std::fs::write(&seal_path, &hex)?;
     println!(
         "recorded {} visible + {} heldout cases from {:?} -> {:?} (sealed {})",
@@ -125,11 +117,7 @@ fn run_grade(
     no_perturb: bool,
 ) -> anyhow::Result<Outcome> {
     let spec = OracleSpec::load(oracle)?;
-    let seal_path = {
-        let mut p = oracle.to_path_buf().into_os_string();
-        p.push(".seal");
-        PathBuf::from(p)
-    };
+    let seal_path = oracle::seal_path(oracle);
     let expected = std::fs::read_to_string(&seal_path).map_err(|_| {
         anyhow::anyhow!("missing seal file {seal_path:?}; run `holdout seal` first")
     })?;

@@ -40,6 +40,14 @@ impl OracleSpec {
     }
 }
 
+/// Returns the conventional `.seal` sidecar path for a given oracle file.
+/// Appends `.seal` as a suffix (e.g. `oracle.json` → `oracle.json.seal`).
+pub fn seal_path(oracle: &Path) -> std::path::PathBuf {
+    let mut p = oracle.to_path_buf().into_os_string();
+    p.push(".seal");
+    std::path::PathBuf::from(p)
+}
+
 pub fn seal(spec: &OracleSpec) -> [u8; 32] {
     *blake3::hash(&spec.canonical_bytes()).as_bytes()
 }

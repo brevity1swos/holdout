@@ -1,6 +1,7 @@
 use serde::Serialize;
 
 use crate::candidate::Candidate;
+use crate::error::HoldoutError;
 use crate::grade::Divergence;
 use crate::procedure::{check_procedure, ProcedurePolicy};
 
@@ -31,7 +32,7 @@ pub fn verify(
     candidate: &Candidate,
     inputs: &[String],
     policy: Option<&ProcedurePolicy>,
-) -> std::io::Result<VerifyReport> {
+) -> Result<VerifyReport, HoldoutError> {
     let mut passed = 0usize;
     let mut first_divergence: Option<Divergence> = None;
     let mut procedure_violations = 0usize;
