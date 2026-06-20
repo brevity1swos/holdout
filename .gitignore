@@ -1,2 +1,4 @@
 /target
 /.omc
+benchmark/quixbugs-data/
+benchmark/.work/
