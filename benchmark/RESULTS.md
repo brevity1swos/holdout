@@ -14,9 +14,10 @@ its one-line-bug version is graded against it (via `holdout grade`).
 |---|---|
 | Buggy programs (excl. `node.py` helper) | 40 |
 | Excluded — graph/object inputs (no JSON interface) | 9 |
-| **Runnable via the JSON command interface** | **31** |
-| **Caught by holdout** | **30 / 31 = 97%** |
-| **Weak-oracle false-greens** (visible passes, held-out catches) | **6 / 31 = 19%** |
+| Excluded — reference unstable/slow (naive `knapsack`/`levenshtein`, O(2ⁿ)) | 2 |
+| **Runnable** | **29** |
+| **Caught by holdout** | **28 / 29 = 97%** |
+| **Weak-oracle false-greens** (visible passes, held-out catches) | **6 / 29 = 21%** |
 | Missed (no provided test triggers the defect) | 1 (`quicksort`) |
 
 ## Why 19% matters
@@ -40,22 +41,39 @@ behaviorally-wrong patches that pass weak SWE-bench oracles (PatchDiff/UTBoost) 
 independent corroboration of the verification-bottleneck thesis on a different
 real-bug corpus.
 
-## A real holdout finding the benchmark surfaced
+## A real holdout finding the benchmark surfaced — now fixed and validated
 
-The buggy `bitcount` (`n ^= n - 1` vs `n &= n - 1`) **infinite-loops**, and
-`holdout grade`/`verify` have **no wall-clock budget on candidate execution** —
-a non-terminating candidate hangs the grader forever (the first run timed out at
-120 s). The spec quarantined execution behind a `Budget { max_wall, max_steps }`,
-but the MVP grade/verify path never enforced one. **This is the top hardening
-item for holdout** (Plan 5): an ungameable grader for untrusted candidates MUST
-bound execution. The benchmark works around it with a 3 s SIGALRM in `runner.py`;
-holdout itself should own that timeout.
+The buggy `bitcount` (`n ^= n - 1` vs `n &= n - 1`) **infinite-loops**, and the
+first gate run exposed that `holdout grade`/`verify` had **no wall-clock budget
+on candidate execution** — a non-terminating candidate hung the grader forever
+(timed out at 120 s). An ungameable grader for *untrusted* candidates must bound
+execution.
+
+**Fixed in holdout core** (`Candidate::with_timeout`, `grade/verify --timeout-ms`,
+default 5000): each candidate run is killed at the budget and recorded as a
+divergence. The gate now runs **with no harness-side timeout on candidates** —
+holdout's own budget handles them:
+
+```
+$ holdout grade --oracle bitcount.oracle.json \
+    --candidate 'python runner.py python_programs bitcount' --timeout-ms 2000 --json
+exit 1 | wall 18.1s | {"heldout_score":0.0, ...,
+  "first_divergence":{"input":"[13]","expected":"3","actual":"<timed out>"}}
+```
+
+18.1 s = ~9 infinite-loop cases × 2 s budget — **bounded, not hung**, and
+correctly reported as a divergence. (The harness retains an *env-gated* net only
+for the trusted *reference* during `record`, because a few correct QuixBugs
+programs are pathologically slow; holdout does not time trusted references.)
 
 ## Honest caveats
 
-- **31 of 40 programs** ran; 9 graph/linked-list/object-based programs are
-  excluded because they take `Node`/`WeightedEdge` objects, not JSON — a limit
-  of this harness's stdin interface, not of holdout.
+- **29 of 40 programs** ran; 9 graph/linked-list/object-based programs are
+  excluded because they take `Node`/`WeightedEdge` objects, not JSON (a limit of
+  this harness's stdin interface, not of holdout), and 2 (`knapsack`,
+  `levenshtein`) are excluded because their naive O(2ⁿ) *correct* reference is
+  too slow to establish ground truth — the harness flags these rather than
+  scoring against a polluted oracle.
 - `quicksort` is "missed" because **QuixBugs' own provided testcases don't
   trigger its defect** — a known limitation of the QuixBugs test sets, not a
   holdout miss. With fresh generated inputs (`holdout verify --generator`) the

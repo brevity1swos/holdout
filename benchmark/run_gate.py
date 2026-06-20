@@ -32,6 +32,10 @@ RUNNER = os.path.join(HERE, "runner.py")
 HOLDOUT = os.path.join(HERE, "..", "target", "debug", "holdout")
 WORK = os.path.join(HERE, ".work")
 VISIBLE = 2  # cases an "agent" sees; the rest are held out
+# Bound only the TRUSTED reference during record (a few correct QuixBugs programs
+# are pathologically slow, e.g. naive knapsack). The buggy CANDIDATE is bounded
+# by holdout itself (grade --timeout-ms) — that is what the gate validates.
+REF_ENV = {**os.environ, "RUNNER_MAX_SECONDS": "10"}
 
 os.makedirs(WORK, exist_ok=True)
 
@@ -74,6 +78,7 @@ def reference_runs(name):
         capture_output=True,
         text=True,
         timeout=20,
+        env=REF_ENV,
     ).stdout.strip()
     return "__error__" not in out
 
@@ -91,15 +96,22 @@ def gate_one(name):
         [HOLDOUT, "record",
          "--reference", f"{sys.executable} {RUNNER} {CORRECT} {name}",
          "--inputs", inputs_path, "--visible", str(visible), "--out", oracle],
-        capture_output=True, text=True, timeout=120,
+        capture_output=True, text=True, timeout=200, env=REF_ENV,
     )
     if rec.returncode != 0:
         return {"name": name, "class": "incompatible", "reason": "record failed: " + rec.stderr.strip()[:60]}
+    # If the trusted reference timed out/errored on any input, there is no
+    # reliable ground truth — exclude rather than score against a bad oracle.
+    with open(oracle) as f:
+        spec = json.load(f)
+    if any("__error__" in c["expected"] for c in spec["visible"] + spec["heldout"]):
+        return {"name": name, "class": "incompatible", "reason": "reference unstable (too slow / errors)"}
 
     grd = subprocess.run(
         [HOLDOUT, "grade", "--oracle", oracle,
-         "--candidate", f"{sys.executable} {RUNNER} {BUGGY} {name}", "--json"],
-        capture_output=True, text=True, timeout=120,
+         "--candidate", f"{sys.executable} {RUNNER} {BUGGY} {name}",
+         "--timeout-ms", "2000", "--json"],  # holdout bounds the buggy candidate
+        capture_output=True, text=True, timeout=300,
     )
     try:
         r = json.loads(grd.stdout.strip().splitlines()[-1])
@@ -134,10 +146,13 @@ def main():
         else:
             print(f"{r['name']:<26} {r['class']:<12} {r['visible']:>7.2f} {r['heldout']:>7.2f} {r['gap']:>5.2f}")
 
+    n_buggy = len([f for f in os.listdir(BUGGY) if f.endswith(".py") and not f.endswith("_test.py")]) - 1
     print("\n=== SUMMARY ===")
-    print(f"buggy programs attempted : {len(results)}")
-    print(f"harness-incompatible     : {len(incompatible)} (graph/object inputs — not holdout's fault)")
-    print(f"runnable via JSON iface  : {len(runnable)}")
+    print(f"buggy programs (excl. node helper) : {n_buggy}")
+    print(f"  excluded pre-attempt (graph/object, no JSON testcases): {n_buggy - len(results)}")
+    print(f"  attempted via JSON iface         : {len(results)}")
+    print(f"    reference unstable/slow (excluded): {len(incompatible)}")
+    print(f"    runnable                        : {len(runnable)}")
     if runnable:
         print(f"  caught by holdout      : {len(caught)}/{len(runnable)} = {100*len(caught)/len(runnable):.0f}%")
         print(f"  WEAK-ORACLE FALSE-GREEN: {len(false_green)}/{len(runnable)} = {100*len(false_green)/len(runnable):.0f}%")
