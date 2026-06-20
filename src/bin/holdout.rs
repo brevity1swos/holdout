@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::time::Duration;
 
 use clap::{Parser, Subcommand};
 use holdout::oracle::{self, OracleSpec};
@@ -45,6 +46,9 @@ enum Cmd {
         gap_tolerance: f64,
         #[arg(long)]
         no_perturb: bool,
+        /// Per-candidate-run wall-clock budget in ms (0 disables).
+        #[arg(long, default_value_t = 5000)]
+        timeout_ms: u64,
     },
     /// Verify a candidate against a live reference over freshly generated inputs.
     Verify {
@@ -62,12 +66,27 @@ enum Cmd {
         policy: Option<PathBuf>,
         #[arg(long)]
         log: Option<PathBuf>,
+        /// Per-candidate-run wall-clock budget in ms (0 disables).
+        #[arg(long, default_value_t = 5000)]
+        timeout_ms: u64,
     },
     /// Render a human-readable digest of a run log (for mid-loop interruption).
     Watch {
         #[arg(long)]
         log: PathBuf,
     },
+}
+
+/// Build a candidate command, bounding its wall-clock execution when
+/// `timeout_ms > 0` (0 disables the budget). Untrusted candidates should
+/// always carry a budget so an infinite-loop bug can't hang the grader.
+fn build_candidate(cmd: &str, timeout_ms: u64) -> Candidate {
+    let cand = Candidate::from_shell(cmd);
+    if timeout_ms > 0 {
+        cand.with_timeout(Duration::from_millis(timeout_ms))
+    } else {
+        cand
+    }
 }
 
 fn run_seal(oracle: &Path) -> anyhow::Result<()> {
@@ -115,6 +134,7 @@ fn run_grade(
     json: bool,
     gap_tolerance: f64,
     no_perturb: bool,
+    timeout_ms: u64,
 ) -> anyhow::Result<Outcome> {
     let spec = OracleSpec::load(oracle)?;
     let seal_path = oracle::seal_path(oracle);
@@ -128,7 +148,7 @@ fn run_grade(
     } else {
         perturb(&spec, 0x5eed)
     };
-    let cand = Candidate::from_shell(candidate);
+    let cand = build_candidate(candidate, timeout_ms);
     let opts = GradeOpts { gap_tolerance };
     let report = grade(&cand, &graded_spec, &opts)?;
 
@@ -157,15 +177,29 @@ fn run_grade(
     })
 }
 
-fn run_verify(
-    reference: &str,
-    candidate: &str,
-    generator: &str,
+#[derive(Clone, Copy)]
+struct VerifyArgs<'a> {
+    reference: &'a str,
+    candidate: &'a str,
+    generator: &'a str,
     n: usize,
     json: bool,
-    policy_path: &Option<PathBuf>,
-    log_path: &Option<PathBuf>,
-) -> anyhow::Result<Outcome> {
+    policy_path: &'a Option<PathBuf>,
+    log_path: &'a Option<PathBuf>,
+    timeout_ms: u64,
+}
+
+fn run_verify(args: VerifyArgs) -> anyhow::Result<Outcome> {
+    let VerifyArgs {
+        reference,
+        candidate,
+        generator,
+        n,
+        json,
+        policy_path,
+        log_path,
+        timeout_ms,
+    } = args;
     let inputs = generate(generator, n)?;
     if inputs.is_empty() {
         anyhow::bail!("generator produced no inputs");
@@ -176,7 +210,7 @@ fn run_verify(
     };
     let report = verify(
         &Candidate::from_shell(reference),
-        &Candidate::from_shell(candidate),
+        &build_candidate(candidate, timeout_ms),
         &inputs,
         policy.as_ref(),
     )?;
@@ -283,7 +317,15 @@ fn main() -> ExitCode {
             json,
             gap_tolerance,
             no_perturb,
-        } => match run_grade(oracle, candidate, *json, *gap_tolerance, *no_perturb) {
+            timeout_ms,
+        } => match run_grade(
+            oracle,
+            candidate,
+            *json,
+            *gap_tolerance,
+            *no_perturb,
+            *timeout_ms,
+        ) {
             Ok(Outcome::Passed) => ExitCode::from(0),
             Ok(Outcome::Failed) => ExitCode::from(1),
             Err(e) => {
@@ -299,7 +341,17 @@ fn main() -> ExitCode {
             json,
             policy,
             log,
-        } => match run_verify(reference, candidate, generator, *n, *json, policy, log) {
+            timeout_ms,
+        } => match run_verify(VerifyArgs {
+            reference,
+            candidate,
+            generator,
+            n: *n,
+            json: *json,
+            policy_path: policy,
+            log_path: log,
+            timeout_ms: *timeout_ms,
+        }) {
             Ok(Outcome::Passed) => ExitCode::from(0),
             Ok(Outcome::Failed) => ExitCode::from(1),
             Err(e) => {

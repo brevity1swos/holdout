@@ -14,7 +14,7 @@ pub mod record;
 pub mod runlog;
 pub mod verify;
 
-pub use candidate::Candidate;
+pub use candidate::{Candidate, Run};
 pub use error::HoldoutError;
 pub use grade::{grade, Divergence, GradeOpts, GradeReport};
 pub use oracle::{Case, OracleKind, OracleSpec};

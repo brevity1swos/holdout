@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use crate::candidate::Candidate;
+use crate::candidate::{Candidate, Run};
 use crate::error::HoldoutError;
 use crate::oracle::{Case, OracleSpec};
 
@@ -49,10 +49,17 @@ fn score_set(
     let mut passed = 0usize;
     let mut first_div: Option<Divergence> = None;
     for case in cases {
-        let actual = candidate.run(&case.input)?;
-        if actual == case.expected {
-            passed += 1;
-        } else if first_div.is_none() {
+        // A timed-out candidate is never a pass; record it as a divergence
+        // without comparing (the budget keeps an infinite-loop bug from hanging).
+        let actual = match candidate.exec(&case.input)? {
+            Run::Done { stdout, .. } if stdout == case.expected => {
+                passed += 1;
+                continue;
+            }
+            Run::Done { stdout, .. } => stdout,
+            Run::TimedOut => "<timed out>".to_string(),
+        };
+        if first_div.is_none() {
             first_div = Some(Divergence {
                 case: case.name.clone(),
                 input: case.input.clone(),

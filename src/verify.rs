@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use crate::candidate::Candidate;
+use crate::candidate::{Candidate, Run};
 use crate::error::HoldoutError;
 use crate::grade::Divergence;
 use crate::procedure::{check_procedure, ProcedurePolicy};
@@ -40,11 +40,19 @@ pub fn verify(
 
     for (i, input) in inputs.iter().enumerate() {
         let expected = reference.run(input)?;
-        let (actual, trace) = candidate.run_capturing(input)?;
-        let output_match = actual == expected;
-        let violations = match policy {
-            Some(p) => check_procedure(&trace, p),
-            None => Vec::new(),
+        // A timed-out candidate is a divergence and carries no trace to check.
+        let (actual, trace, timed_out) = match candidate.exec(input)? {
+            Run::Done { stdout, stderr } => (stdout, stderr, false),
+            Run::TimedOut => ("<timed out>".to_string(), String::new(), true),
+        };
+        let output_match = !timed_out && actual == expected;
+        let violations = if timed_out {
+            Vec::new()
+        } else {
+            match policy {
+                Some(p) => check_procedure(&trace, p),
+                None => Vec::new(),
+            }
         };
         if output_match && violations.is_empty() {
             passed += 1;
