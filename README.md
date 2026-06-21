@@ -31,6 +31,15 @@ hard-to-overfit behavioral feedback during a refactor/regression loop.
 - **Bounded + interruptible.** A wall-clock budget kills a non-terminating
   candidate; `watch` renders a drift digest a human can act on mid-loop.
 
+## Install
+
+```sh
+cargo install holdout
+```
+
+Rust 1.74+. Unix-only candidate execution (the grader shells out to candidate
+commands, so it expects a Unix-like shell).
+
 ## Usage
 
 ```sh
@@ -87,17 +96,21 @@ out-of-band.
 
 ## Status
 
-Working core, validated on real bugs and dogfooded once in a live agent loop
-(`dogfood/RESULTS.md` — conditional positive: the loop works and catches real
-false-greens, but adds little on tasks an agent already one-shots). Subcommands
-`seal`/`record`/`grade`/`verify`/`watch`/`properties` all implemented; wall-clock
-budget, procedure gating, hashed-held-out (`record --hash-expected`), and
-greenfield property grading shipped. The QuixBugs mechanism gate (`benchmark/`)
-catches **28/29 = 97%** of real one-line bugs; the weak-oracle false-green rate is
-a curve in how many examples the agent sees (62%→10% at VISIBLE 1→5). Not on
-crates.io; Unix-only candidate execution. The **SWE-bench repo-patch regime is the
-decisive unmeasured validation**; live `watch --follow` and a `grade` run-log are
-not yet implemented. See `benchmark/RESULTS.md` and `dogfood/RESULTS.md`.
+**v0.1.0 on crates.io** (`cargo install holdout`). Working core, dogfooded once in
+a live agent loop (`dogfood/RESULTS.md` — conditional positive: the loop works and
+catches real false-greens, but adds little on tasks an agent already one-shots).
+Subcommands `seal`/`record`/`grade`/`verify`/`watch`/`properties` all implemented;
+wall-clock budget, procedure gating, hashed-held-out (`record --hash-expected`),
+and greenfield property grading shipped.
+
+**Validated on real bugs:** 28/29 = 97% catch on the QuixBugs gate (the false-green
+rate is a curve in how many examples the agent sees, 62%→10% at VISIBLE 1→5), and
+on a real SWE-bench Verified instance (`django__django-16485`) holdout flags a patch
+SWE-bench's **own official oracle marks resolved** — caught via a held-out
+[UTBoost](https://github.com/CUHK-Shenzhen-SE/UTBoost) test, on a real Docker eval
+(`benchmark/swebench/FALSE_GREEN.md`). That's one confirmed false-green, not a
+measured rate. Unix-only candidate execution; live `watch --follow` and a `grade`
+run-log are not yet implemented. See `benchmark/RESULTS.md` and `dogfood/RESULTS.md`.
 
 ## License
 
