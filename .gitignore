@@ -4,3 +4,4 @@ benchmark/quixbugs-data/
 benchmark/.work/
 /dogfood/candidate.py
 /dogfood/check.log
+/benchmark/swebench/.docker_work/
