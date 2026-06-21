@@ -6,7 +6,11 @@ rust-version = "1.74"
 license = "MIT"
 description = "A tamper-resistant, agent-facing verification oracle: grade a candidate against a sealed held-out suite it cannot read or edit."
 readme = "README.md"
-repository = ""
+repository = "https://github.com/brevity1swos/holdout"
+homepage = "https://github.com/brevity1swos/holdout"
+keywords = ["testing", "verification", "agent", "oracle", "cli"]
+categories = ["command-line-utilities", "development-tools::testing"]
+exclude = ["/benchmark", "/dogfood", "/assets/demo.tape"]
 
 [dependencies]
 blake3 = "1"

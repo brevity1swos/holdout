@@ -12,6 +12,15 @@ Under the hood this is **differential + held-out + metamorphic-style testing**
 (established techniques) packaged for one job: giving an LLM agent precise,
 hard-to-overfit behavioral feedback during a refactor/regression loop.
 
+![holdout demo](https://raw.githubusercontent.com/brevity1swos/holdout/main/assets/demo.gif)
+
+> **Validated on real bugs.** On the [QuixBugs](https://github.com/jkoppel/QuixBugs)
+> corpus, holdout catches **28/29 = 97%** of real one-line bugs. And on a real
+> SWE-bench Verified instance (`django__django-16485`), it flags a patch that
+> SWE-bench's official oracle marks **resolved** — caught via a held-out
+> [UTBoost](https://github.com/CUHK-Shenzhen-SE/UTBoost) test the metric never ran.
+> See [`benchmark/`](benchmark/).
+
 ## What it does well
 
 - **Refactor / regression verification.** Capture a reference's behavior, then
