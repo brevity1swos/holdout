@@ -1,0 +1,20 @@
+# REVIEW THEN: mv scaffold/ci.yml.proposed .github/workflows/ci.yml
+# Standard hygiene for a public Rust crate: fmt + clippy(-D warnings) + tests.
+# All tests are stdlib + Unix tools (awk/seq/cat/tr/sh/tee/python3), available on
+# ubuntu-latest.
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
