@@ -5,3 +5,5 @@ benchmark/.work/
 /dogfood/candidate.py
 /dogfood/check.log
 /benchmark/swebench/.docker_work/
+/benchmark/swebench/logs/
+/benchmark/swebench/gold.*.json
