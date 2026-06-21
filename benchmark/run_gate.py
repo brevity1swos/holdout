@@ -31,7 +31,7 @@ TESTS = os.path.join(DATA, "json_testcases")
 RUNNER = os.path.join(HERE, "runner.py")
 HOLDOUT = os.path.join(HERE, "..", "target", "debug", "holdout")
 WORK = os.path.join(HERE, ".work")
-VISIBLE = 2  # cases an "agent" sees; the rest are held out
+VISIBLE = int(os.environ.get("VISIBLE", "2"))  # cases an "agent" sees; rest held out
 # Bound only the TRUSTED reference during record (a few correct QuixBugs programs
 # are pathologically slow, e.g. naive knapsack). The buggy CANDIDATE is bounded
 # by holdout itself (grade --timeout-ms) — that is what the gate validates.

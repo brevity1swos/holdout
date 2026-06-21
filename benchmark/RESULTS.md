@@ -1,6 +1,6 @@
 # QuixBugs mechanism gate — results
 
-**Date:** 2026-06-20 · **holdout:** local `target/debug` · **VISIBLE=2**
+**Date:** 2026-06-20 · **holdout:** local `target/debug` · **VISIBLE swept 1–5**
 
 Validates holdout's core claim on **real, published bugs**: a weak oracle that
 only checks the examples an agent sees ("visible") passes behaviorally-wrong
@@ -17,29 +17,38 @@ its one-line-bug version is graded against it (via `holdout grade`).
 | Excluded — reference unstable/slow (naive `knapsack`/`levenshtein`, O(2ⁿ)) | 2 |
 | **Runnable** | **29** |
 | **Caught by holdout** | **28 / 29 = 97%** |
-| **Weak-oracle false-greens** (visible passes, held-out catches) | **6 / 29 = 21%** |
+| **Weak-oracle false-greens** (visible passes, held-out catches) | **VISIBLE-dependent: 62%→10% (curve below)** |
 | Missed (no provided test triggers the defect) | 1 (`quicksort`) |
 
-## Why 19% matters
+## The false-green rate is a curve, not a number
 
-The 6 **false-greens** are the thesis made concrete: the buggy version matches
-the correct one on the first 2 (visible) cases — an agent checking only those
-examples would ship the bug — but diverges on held-out inputs, which holdout
-flags via `heldout_score < 1.0` and `Δ_gap > 0`:
+A **false-green** is a buggy program that passes every *visible* case but a
+held-out one catches — exactly what holdout exists to flag. But the rate depends
+entirely on **how many cases the agent is assumed to see**: with fewer visible
+cases, more bugs hide in the held-out region. So a single headline number would
+be cherry-picked. The honest report is the sensitivity curve:
 
-| program | visible | heldout | gap |
-|---|---|---|---|
-| is_valid_parenthesization | 1.00 | 0.00 | 1.00 |
-| shunting_yard | 1.00 | 0.00 | 1.00 |
-| to_base | 1.00 | 0.12 | 0.88 |
-| longest_common_subsequence | 1.00 | 0.50 | 0.50 |
-| lis | 1.00 | 0.60 | 0.40 |
-| next_palindrome | 1.00 | 0.67 | 0.33 |
+| VISIBLE (cases the agent sees) | caught | **false-greens** |
+|---|---|---|
+| 1 | 29/29 = 100% | **18/29 = 62%** |
+| 2 | 28/29 = 97% | **6/29 = 21%** |
+| 3 | 28/29 = 97% | **5/29 = 17%** |
+| 5 | 27/29 = 93% | **3/29 = 10%** |
 
-**19% lands squarely inside the literature's 7.8–29.6% band** for
-behaviorally-wrong patches that pass weak SWE-bench oracles (PatchDiff/UTBoost) —
-independent corroboration of the verification-bottleneck thesis on a different
-real-bug corpus.
+The trend is the real finding: **the more an agent already knows (more examples),
+the less holdout's held-out catching adds** — which matches the dogfood result
+(on well-known tasks an agent effectively has "many examples" and one-shots, so
+holdout validates rather than catches). holdout earns its keep where the agent is
+under-specified relative to the true behavior.
+
+> **On the literature comparison (honesty note):** the false-green rate overlaps
+> the 7.8–29.6% band reported for behaviorally-wrong patches that pass weak
+> SWE-bench oracles (PatchDiff/UTBoost) — but this is **suggestive, not
+> equivalent**. Those numbers measure PR-modified tests missing regressions in
+> *other* functionality; ours measures a held-out split of a toy algorithm's own
+> tests. Same ballpark, genuinely different phenomena. A real head-to-head needs
+> the deferred SWE-bench adapter. N=29 is small; treat these as a mechanism
+> demonstration, not a benchmark result.
 
 ## A real holdout finding the benchmark surfaced — now fixed and validated
 
@@ -78,9 +87,8 @@ programs are pathologically slow; holdout does not time trusted references.)
   trigger its defect** — a known limitation of the QuixBugs test sets, not a
   holdout miss. With fresh generated inputs (`holdout verify --generator`) the
   catch-rate would likely rise.
-- `VISIBLE=2` is a choice; the false-green count is a function of how many cases
-  an agent is assumed to see. More visible cases → fewer false-greens (the bug
-  more likely shows in the visible set); the 97% catch-rate is independent of it.
+- The false-green rate's dependence on VISIBLE is reported as a curve above, not
+  a single number — see "The false-green rate is a curve, not a number."
 - This is the **mechanism gate** (Phase 1). The **SWE-bench adapter** (Phase 2)
   is deferred pending these results.
 
