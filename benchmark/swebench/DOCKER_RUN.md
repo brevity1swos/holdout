@@ -26,18 +26,20 @@ from the real `FAIL_TO_PASS`/`PASS_TO_PASS` split.
 
 - **Proven:** holdout grades real, in-Docker SWE-bench test results, with the
   FAIL_TO_PASS = visible / PASS_TO_PASS = held-out mapping, on a real instance.
-- **Not shown here:** a real *false-green* on Docker. Gold patches resolve every
-  instance by construction, so they cannot produce one. Catching a real
-  false-green needs a **model's prediction set** — run instances the model marked
-  "solved" (passes FAIL_TO_PASS) and look for ones where a held-out PASS_TO_PASS
-  test fails (`visible 100% / heldout < 100% / gap > 0`). The mechanism is already
-  demonstrated on simulated-real results for this exact instance (a broken
-  `test_basic_building` → heldout 80%, gap 0.20; see `run_docker_eval.sh` + the
-  synthetic `instances/calc`). To hunt one in the wild:
+- **Not shown here:** a real *false-green*. Gold patches resolve every instance by
+  construction, so they cannot produce one. Two honest caveats on what a
+  false-green even means (see README "which weak oracle?"):
+  - A patch that passes `FAIL_TO_PASS` but breaks `PASS_TO_PASS` is **not** a
+    SWE-bench false-green — SWE-bench's "resolved" metric checks P2P, so it catches
+    that. It only fools a naive `FAIL_TO_PASS`-only check (Mode A).
+  - The real PatchDiff/UTBoost false-green is a patch SWE-bench marks **resolved**
+    (F2P+P2P pass) that an **augmented** test exposes. To catch one, run a model's
+    *resolved* prediction against the UTBoost dataset (Mode B):
 
 ```sh
-# get a model's predictions for SWE-bench_Verified, then:
-sh run_docker_eval.sh --predictions model_preds.jsonl <instance_ids the model resolved...>
+sh run_docker_eval.sh --dataset uiuc-kang-lab/SWE-bench-Verified-UTBoost \
+   --predictions model_preds.jsonl <instance_ids the model resolved...>
+# false-green => visible (original tests) 100% / heldout (augmented) < 100% / gap > 0
 ```
 
 ## Cost note (arm64)

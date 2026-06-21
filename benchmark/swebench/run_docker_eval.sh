@@ -13,7 +13,13 @@ dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 HOLDOUT="$dir/../../target/debug/holdout"
 DATASET=princeton-nlp/SWE-bench_Verified
 PREDS=gold
-case "$1" in --predictions) PREDS="$2"; shift 2 ;; esac
+while :; do
+  case "$1" in
+    --dataset) DATASET="$2"; shift 2 ;;
+    --predictions) PREDS="$2"; shift 2 ;;
+    *) break ;;
+  esac
+done
 work="$dir/.docker_work"; mkdir -p "$work"
 
 for iid in "$@"; do
@@ -32,7 +38,8 @@ for iid in "$@"; do
   python3 "$dir/report_to_results.py" "$report" "$iid" "$work/$iid.results.json"
 
   # 3. Build the holdout oracle (visible=FAIL_TO_PASS, heldout=PASS_TO_PASS) + seal.
-  python3 "$dir/fetch_by_id.py" "$iid" > "$work/$iid.instance.json"
+  #    Uses the SAME dataset as the eval, so Mode B (UTBoost) folds in augmented tests.
+  python3 "$dir/fetch_by_id.py" "$iid" "$DATASET" > "$work/$iid.instance.json"
   python3 "$dir/make_oracle.py" "$work/$iid.instance.json" > "$work/$iid.oracle.json"
   SEAL=$("$HOLDOUT" seal --oracle "$work/$iid.oracle.json")
 

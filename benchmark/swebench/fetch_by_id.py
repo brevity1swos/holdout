@@ -8,7 +8,8 @@ import json
 from datasets import load_dataset
 
 iid = sys.argv[1]
-ds = load_dataset("princeton-nlp/SWE-bench_Verified", split="test")
+dataset = sys.argv[2] if len(sys.argv) > 2 else "princeton-nlp/SWE-bench_Verified"
+ds = load_dataset(dataset, split="test")
 row = next(r for r in ds if r["instance_id"] == iid)
 json.dump(
     {

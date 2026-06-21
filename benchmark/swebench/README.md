@@ -1,19 +1,29 @@
 # SWE-bench adapter (Phase 2)
 
 Maps SWE-bench's repo-patch + pytest model onto holdout's existing `grade`, with
-**no changes to holdout**. The thesis it tests: SWE-bench's headline oracle checks
-only the `FAIL_TO_PASS` tests, so a patch can be marked **"solved"** while breaking
-other behavior — PatchDiff/UTBoost (arXiv 2503.15223 / 2506.09289) put this at
-**7.8–29.6%** of "solved" patches. holdout catches exactly those.
+**no changes to holdout**: the "candidate" is `test_runner.sh` (a pytest test id on
+stdin → `PASS`/`FAIL`), each case's `expected` is `"PASS"`, and a **false-green**
+is `visible 100%` but `heldout < 100%` (`gap > 0`).
 
-## The mapping (this is the whole adapter)
+> [!IMPORTANT] **Honest framing — which weak oracle?** SWE-bench's own "resolved"
+> metric checks **both** `FAIL_TO_PASS` **and** `PASS_TO_PASS`. So the split below
+> does **not** reproduce the PatchDiff/UTBoost finding by itself — those are
+> patches SWE-bench marks *resolved* (F2P+P2P both pass) that are *still* wrong,
+> caught only by **augmented** tests beyond both sets. This adapter has two modes:
 
-| SWE-bench | holdout |
-|---|---|
-| a candidate patch applied to the repo | the **candidate command** (`test_runner.sh`): given a pytest test id on stdin, prints `PASS`/`FAIL` |
-| `FAIL_TO_PASS` tests (the weak oracle) | **visible** cases, each `expected: "PASS"` |
-| `PASS_TO_PASS` tests (regressions it under-weights) | **held-out** cases, each `expected: "PASS"` |
-| a behaviorally-wrong "solved" patch | a **false-green**: `visible 100%` but `heldout < 100%`, `gap > 0` |
+**Mode A — naive-oracle demo (default).** visible = `FAIL_TO_PASS`,
+held-out = `PASS_TO_PASS`. This models a **`FAIL_TO_PASS`-only** weak oracle — a
+"did my new test pass?" check (a real agent/CI failure mode) — and shows holdout's
+held-out catches the regressions it misses. It is **not** "what SWE-bench misses"
+(SWE-bench checks P2P too).
+
+**Mode B — faithful literature finding.** visible = original `FAIL_TO_PASS` +
+`PASS_TO_PASS` (= SWE-bench "resolved"), held-out = **UTBoost augmented tests**.
+Run `run_docker_eval.sh` against `--dataset uiuc-kang-lab/SWE-bench-Verified-UTBoost`
+with a model's *resolved* prediction: a patch that passes the original oracle but
+fails an augmented held-out test is the real **7.8–29.6%** false-green
+(PatchDiff/UTBoost, arXiv 2503.15223 / 2506.09289) that SWE-bench's full oracle
+missed. See `DOCKER_RUN.md` for the run.
 
 `make_oracle.py instance.json` builds the oracle; `holdout grade` does the rest.
 

@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """Map a SWE-bench(-style) instance to a holdout oracle (printed to stdout).
 
-The mapping is the whole point of the adapter:
-  - VISIBLE cases  = FAIL_TO_PASS test ids — the tests SWE-bench's weak oracle
-    checks to call a patch "solved".
-  - HELD-OUT cases = PASS_TO_PASS test ids — the regression tests the headline
-    metric under-weights.
-  - Each case's `input` is a pytest test id; its `expected` output is "PASS".
+The mapping: each case's `input` is a pytest test id, `expected` is "PASS"; a
+candidate passing every VISIBLE test but failing a HELD-OUT one is a false-green
+(heldout_score < 1, delta_gap > 0), via the unmodified `holdout grade`.
 
-A candidate that passes every VISIBLE test but fails a HELD-OUT one is a
-behaviorally-wrong "solved" patch — the false-green PatchDiff/UTBoost report
-(7.8-29.6% of SWE-bench "solved" patches). holdout flags it as heldout_score < 1
-with delta_gap > 0, using the unmodified `holdout grade`.
+Which tests go where depends on the mode (see README "which weak oracle?"):
+  - Mode A (FAIL_TO_PASS-only weak oracle): visible = FAIL_TO_PASS,
+    held-out = PASS_TO_PASS. Catches regressions a "did my new test pass?" check
+    misses. NOT what SWE-bench misses (its "resolved" metric checks P2P too).
+  - Mode B (faithful): run against the UTBoost dataset so the augmented tests are
+    folded into FAIL_TO_PASS/PASS_TO_PASS; a patch SWE-bench marks *resolved* that
+    fails an augmented test is the real PatchDiff/UTBoost false-green.
 
 Usage: make_oracle.py instance.json > oracle.json
 """
