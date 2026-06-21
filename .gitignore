@@ -7,3 +7,4 @@ benchmark/.work/
 /benchmark/swebench/.docker_work/
 /benchmark/swebench/logs/
 /benchmark/swebench/gold.*.json
+/benchmark/swebench/*.json
