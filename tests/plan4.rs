@@ -5,7 +5,7 @@ fn corrupt_success_disqualified_and_log_digest_flags_stuck() {
     // --- procedure gating: output correct, trace forbidden → disqualified ---
     let policy = ProcedurePolicy {
         forbidden: vec!["FORBIDDEN".into()],
-        required: vec![],
+        ..Default::default()
     };
     let report = verify(
         &Candidate::from_shell("cat"),

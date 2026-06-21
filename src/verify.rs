@@ -137,7 +137,7 @@ mod tests {
     fn corrupt_success_is_disqualified() {
         let policy = ProcedurePolicy {
             forbidden: vec!["FORBIDDEN".into()],
-            required: vec![],
+            ..Default::default()
         };
         let reference = Candidate::from_shell("cat");
         // `tee /dev/stderr` copies stdin to BOTH stdout (matches cat) and stderr (the trace).

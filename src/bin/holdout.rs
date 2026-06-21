@@ -46,6 +46,10 @@ enum Cmd {
         gap_tolerance: f64,
         #[arg(long)]
         no_perturb: bool,
+        /// Expected oracle seal, supplied out-of-band by the trusted caller.
+        /// Overrides the on-disk sidecar (also reads the HOLDOUT_SEAL env var).
+        #[arg(long)]
+        seal: Option<String>,
         /// Per-candidate-run wall-clock budget in ms (0 disables).
         #[arg(long, default_value_t = 5000)]
         timeout_ms: u64,
@@ -134,13 +138,26 @@ fn run_grade(
     json: bool,
     gap_tolerance: f64,
     no_perturb: bool,
+    seal: &Option<String>,
     timeout_ms: u64,
 ) -> anyhow::Result<Outcome> {
     let spec = OracleSpec::load(oracle)?;
-    let seal_path = oracle::seal_path(oracle);
-    let expected = std::fs::read_to_string(&seal_path).map_err(|_| {
-        anyhow::anyhow!("missing seal file {seal_path:?}; run `holdout seal` first")
-    })?;
+    // Resolve the expected seal out-of-band first — the trusted caller holds it
+    // (--seal or HOLDOUT_SEAL), falling back to the on-disk sidecar for local use.
+    // Out-of-band is what makes tampering detectable even when the agent can write
+    // the workspace: it cannot forge a seal it never sees.
+    let expected = if let Some(s) = seal {
+        s.clone()
+    } else if let Ok(s) = std::env::var("HOLDOUT_SEAL") {
+        s
+    } else {
+        let seal_path = oracle::seal_path(oracle);
+        std::fs::read_to_string(&seal_path).map_err(|_| {
+            anyhow::anyhow!(
+                "no seal: pass --seal / HOLDOUT_SEAL, or run `holdout seal` for a sidecar"
+            )
+        })?
+    };
     oracle::verify_seal(&spec, expected.trim())?; // SealMismatch → Err → exit 2
 
     let graded_spec = if no_perturb {
@@ -317,6 +334,7 @@ fn main() -> ExitCode {
             json,
             gap_tolerance,
             no_perturb,
+            seal,
             timeout_ms,
         } => match run_grade(
             oracle,
@@ -324,6 +342,7 @@ fn main() -> ExitCode {
             *json,
             *gap_tolerance,
             *no_perturb,
+            seal,
             *timeout_ms,
         ) {
             Ok(Outcome::Passed) => ExitCode::from(0),
