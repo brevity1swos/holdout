@@ -35,7 +35,15 @@ holdout verify --reference './old' --candidate './new' --generator './gen' --n 2
 
 # Render a run-log digest with a drift flag (mid-loop human signal).
 holdout watch  --log run.jsonl
+
+# Greenfield (no reference): grade against human-authored property predicates.
+holdout properties --candidate './impl' --generator './gen' --properties props.json
 ```
+
+`props.json` is `{ "properties": [ {"name": "...", "command": "..."} ] }`. Each
+property command receives `{"input":..,"output":..}` JSON on stdin and exits 0 if
+the invariant holds, non-zero if violated (e.g. "output is sorted", "round-trips",
+"len(out)==len(in)"). No reference output is needed — you state what must be true.
 
 Exit codes throughout: `0` = passed, `1` = divergence / failure, `2` = seal
 mismatch / usage / IO error. A timed-out candidate is recorded as a divergence
@@ -59,9 +67,9 @@ The anti-gaming guarantees are **conditional**, and the honest conditions are:
   candidate's stderr. It catches a corrupt success only if the candidate's trace
   records the step; it does not intercept syscalls, tool calls, or auth checks.
 - **holdout grades against a *given* oracle; it does not invent one.** For
-  refactor/regression you have a reference. For greenfield you must supply the
-  oracle (a reference impl, golden trace, or properties) — that authoring is not
-  automated away.
+  refactor/regression you have a reference (`record`/`verify`). For greenfield,
+  `holdout properties` checks human-authored invariants with no reference needed —
+  but *you* still author the properties; that spec authoring is not automated away.
 
 In short: against a non-adversarial agent that is merely *sometimes wrong*,
 holdout is a robust, ungameable-by-construction grader. Against a determined
@@ -70,13 +78,17 @@ out-of-band.
 
 ## Status
 
-Working core, **validated on real bugs but not yet dogfooded in a live agent
-loop**. Subcommands `seal`/`record`/`grade`/`verify`/`watch` all implemented;
-wall-clock budget and procedure gating shipped. The QuixBugs mechanism gate
-(`benchmark/`) catches **28/29 = 97%** of real one-line bugs with **6/29 = 21%**
-weak-oracle false-greens. Not on crates.io; Unix-only candidate execution. The
-SWE-bench repo-patch regime, live `watch --follow`, and a `grade` run-log are not
-yet implemented. See `benchmark/RESULTS.md`.
+Working core, validated on real bugs and dogfooded once in a live agent loop
+(`dogfood/RESULTS.md` — conditional positive: the loop works and catches real
+false-greens, but adds little on tasks an agent already one-shots). Subcommands
+`seal`/`record`/`grade`/`verify`/`watch`/`properties` all implemented; wall-clock
+budget, procedure gating, hashed-held-out (`record --hash-expected`), and
+greenfield property grading shipped. The QuixBugs mechanism gate (`benchmark/`)
+catches **28/29 = 97%** of real one-line bugs; the weak-oracle false-green rate is
+a curve in how many examples the agent sees (62%→10% at VISIBLE 1→5). Not on
+crates.io; Unix-only candidate execution. The **SWE-bench repo-patch regime is the
+decisive unmeasured validation**; live `watch --follow` and a `grade` run-log are
+not yet implemented. See `benchmark/RESULTS.md` and `dogfood/RESULTS.md`.
 
 ## License
 

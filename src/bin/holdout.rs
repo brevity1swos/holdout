@@ -5,8 +5,8 @@ use std::time::Duration;
 use clap::{Parser, Subcommand};
 use holdout::oracle::{self, OracleSpec};
 use holdout::{
-    append_log, digest, generate, grade, parse_inputs, perturb::perturb, read_log, record, verify,
-    Candidate, GradeOpts, LogRecord, ProcedurePolicy, Trend,
+    append_log, assess, digest, generate, grade, parse_inputs, perturb::perturb, read_log, record,
+    verify, Candidate, GradeOpts, LogRecord, ProcedurePolicy, PropertySet, Trend,
 };
 
 #[derive(Parser)]
@@ -82,6 +82,23 @@ enum Cmd {
     Watch {
         #[arg(long)]
         log: PathBuf,
+    },
+    /// Grade a candidate against human-authored property predicates (greenfield —
+    /// no reference needed). Each property command receives {"input":..,"output":..}
+    /// on stdin and exits 0 (holds) / non-zero (violated).
+    Properties {
+        #[arg(long)]
+        candidate: String,
+        #[arg(long)]
+        generator: String,
+        #[arg(long)]
+        properties: PathBuf,
+        #[arg(long, default_value_t = 0)]
+        n: usize,
+        #[arg(long)]
+        json: bool,
+        #[arg(long, default_value_t = 5000)]
+        timeout_ms: u64,
     },
 }
 
@@ -311,6 +328,38 @@ fn run_watch(log: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn run_properties(
+    candidate: &str,
+    generator: &str,
+    properties: &Path,
+    n: usize,
+    json: bool,
+    timeout_ms: u64,
+) -> anyhow::Result<Outcome> {
+    let inputs = generate(generator, n)?;
+    if inputs.is_empty() {
+        anyhow::bail!("generator produced no inputs");
+    }
+    let set: PropertySet = serde_json::from_slice(&std::fs::read(properties)?)?;
+    let report = assess(&build_candidate(candidate, timeout_ms), &inputs, &set)?;
+    if json {
+        println!("{}", serde_json::to_string(&report)?);
+    } else {
+        println!(
+            "properties: {}/{} inputs satisfied all  reward {:.2}",
+            report.passed, report.total, report.reward
+        );
+        if let Some(v) = &report.first_violation {
+            println!("first violation: {v}");
+        }
+    }
+    Ok(if report.ok() {
+        Outcome::Passed
+    } else {
+        Outcome::Failed
+    })
+}
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
     match &cli.command {
@@ -386,6 +435,21 @@ fn main() -> ExitCode {
         },
         Cmd::Watch { log } => match run_watch(log) {
             Ok(()) => ExitCode::from(0),
+            Err(e) => {
+                eprintln!("error: {e:#}");
+                ExitCode::from(2)
+            }
+        },
+        Cmd::Properties {
+            candidate,
+            generator,
+            properties,
+            n,
+            json,
+            timeout_ms,
+        } => match run_properties(candidate, generator, properties, *n, *json, *timeout_ms) {
+            Ok(Outcome::Passed) => ExitCode::from(0),
+            Ok(Outcome::Failed) => ExitCode::from(1),
             Err(e) => {
                 eprintln!("error: {e:#}");
                 ExitCode::from(2)
