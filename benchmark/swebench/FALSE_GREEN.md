@@ -50,6 +50,24 @@ applying a strict test:
   "resolved-on-original XOR resolved-on-UTBoost" would have falsely flagged it;
   the original-tests-must-pass check rejects it.
 
+## Extended sweep (honest tally)
+
+Ran all 10 candidates (3 django, 3 sympy, 2 xarray, 2 sklearn — `pylint` was in an
+earlier batch) against UTBoost in real Docker. Outcome:
+
+- **1 clean false-green:** `django-16485` (above).
+- **Correct patches, correctly NOT flagged:** `sympy-16450/20154/21847`,
+  `django-11133`, `xarray-3305` (original + augmented both pass).
+- **Reproduction artifacts, correctly REJECTED** by the all-original-must-pass
+  rule: `pylint-6528`, `xarray-4687` (original tests failed → arm64 env, not a
+  behavioral catch).
+- **Build/run failed on arm64:** both `scikit-learn` instances, `django-14915`,
+  `pylint-6903` (scientific-stack / parallel-build issues under native arm64).
+
+So this is **one confirmed false-green, not a measured rate** — the full augmented
+sweep (26 instances × many models) would need x86 hardware to run reliably. The
+existence proof on real Docker is what's done.
+
 ## Reproduce
 
 ```sh
