@@ -48,9 +48,12 @@ The anti-gaming guarantees are **conditional**, and the honest conditions are:
 - **The seal only helps if it is held out-of-band.** Pass it via `--seal` or
   `HOLDOUT_SEAL` from a trusted orchestrator. The on-disk `.seal` sidecar is a
   convenience for local use — an agent that can write the workspace can forge it.
-- **The held-out *answers* live in the oracle file.** An agent that can read the
-  oracle can read the held-out cases. For a genuinely unseen check, use `verify`
-  (live reference + inputs generated at grade time — nothing is stored).
+- **The held-out *answers* live in the oracle file by default** — but
+  `record --hash-expected` stores only BLAKE3 hashes of the held-out answers, so
+  reading the oracle reveals nothing (grading still works by hashing the
+  candidate's output; divergences show the expected value as `<hashed>`). For a
+  check that stores nothing at all, use `verify` (live reference + inputs
+  generated at grade time).
 - **Procedure gating is trace-string checking, not instrumentation.** `--policy`
   matches `forbidden` / `required` / `require_order` substrings against the
   candidate's stderr. It catches a corrupt success only if the candidate's trace

@@ -33,6 +33,10 @@ enum Cmd {
         visible: usize,
         #[arg(long)]
         out: PathBuf,
+        /// Store BLAKE3 hashes of the held-out answers instead of plaintext, so
+        /// reading the oracle file reveals nothing.
+        #[arg(long)]
+        hash_expected: bool,
     },
     /// Grade a candidate command against the sealed oracle.
     Grade {
@@ -107,10 +111,11 @@ fn run_record(
     inputs: &PathBuf,
     visible: usize,
     out: &PathBuf,
+    hash_expected: bool,
 ) -> anyhow::Result<()> {
     let text = std::fs::read_to_string(inputs)?;
     let parsed = parse_inputs(&text);
-    let spec = record(reference, &parsed, visible)?;
+    let spec = record(reference, &parsed, visible, hash_expected)?;
     let json = serde_json::to_string_pretty(&spec)?;
     std::fs::write(out, &json)?;
     let hex = oracle::seal_hex(&spec);
@@ -314,7 +319,8 @@ fn main() -> ExitCode {
             inputs,
             visible,
             out,
-        } => match run_record(reference, inputs, *visible, out) {
+            hash_expected,
+        } => match run_record(reference, inputs, *visible, out, *hash_expected) {
             Ok(()) => ExitCode::from(0),
             Err(e) => {
                 eprintln!("error: {e:#}");

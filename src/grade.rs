@@ -52,7 +52,7 @@ fn score_set(
         // A timed-out candidate is never a pass; record it as a divergence
         // without comparing (the budget keeps an infinite-loop bug from hanging).
         let actual = match candidate.exec(&case.input)? {
-            Run::Done { stdout, .. } if stdout == case.expected => {
+            Run::Done { stdout, .. } if case.matches(&stdout) => {
                 passed += 1;
                 continue;
             }
@@ -63,7 +63,7 @@ fn score_set(
             first_div = Some(Divergence {
                 case: case.name.clone(),
                 input: case.input.clone(),
-                expected: case.expected.clone(),
+                expected: case.expected_display().to_string(),
                 actual,
             });
         }

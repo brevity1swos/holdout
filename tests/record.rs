@@ -8,7 +8,7 @@ fn record_then_grade_catches_behavior_change_on_unseen_input() {
         .map(|s| s.to_string())
         .collect();
     // Capture a trusted reference (square). 1 visible, 4 held-out the candidate never sees.
-    let spec = record("awk {print($1*$1)}", &inputs, 1).unwrap();
+    let spec = record("awk {print($1*$1)}", &inputs, 1, false).unwrap();
     assert_eq!(spec.kind, OracleKind::GoldenTrace);
 
     // Seal + verify the captured oracle.

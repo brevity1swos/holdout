@@ -1,6 +1,6 @@
 use crate::candidate::Candidate;
 use crate::error::HoldoutError;
-use crate::oracle::{Case, OracleKind, OracleSpec};
+use crate::oracle::{hash_expected, Case, OracleKind, OracleSpec};
 
 pub fn parse_inputs(text: &str) -> Vec<String> {
     text.lines()
@@ -23,6 +23,7 @@ pub fn record(
     reference: &str,
     inputs: &[String],
     visible_count: usize,
+    hash_heldout: bool,
 ) -> Result<OracleSpec, HoldoutError> {
     let cand = Candidate::from_shell(reference);
     let mut visible = Vec::new();
@@ -30,6 +31,7 @@ pub fn record(
     for (i, input) in inputs.iter().enumerate() {
         let expected = cand.run(input)?;
         if i < visible_count {
+            // Visible cases are examples the agent is meant to see — never hashed.
             visible.push(Case {
                 name: format!("v{i}"),
                 input: input.clone(),
@@ -37,6 +39,12 @@ pub fn record(
             });
         } else {
             let h = heldout.len();
+            // Held-out answers can be hashed so reading the oracle reveals nothing.
+            let expected = if hash_heldout {
+                hash_expected(&expected)
+            } else {
+                expected
+            };
             heldout.push(Case {
                 name: format!("h{h}"),
                 input: input.clone(),
@@ -82,7 +90,7 @@ mod tests {
             "5".to_string(),
             "7".to_string(),
         ];
-        let spec = record("awk {print($1*$1)}", &inputs, 1).unwrap();
+        let spec = record("awk {print($1*$1)}", &inputs, 1, false).unwrap();
         assert_eq!(spec.kind, OracleKind::GoldenTrace);
         assert_eq!(spec.reference.as_deref(), Some("awk {print($1*$1)}"));
         assert_eq!(spec.visible.len(), 1);
@@ -93,5 +101,20 @@ mod tests {
         assert_eq!(spec.heldout[0].expected, "9");
         assert_eq!(spec.heldout[2].expected, "49");
         assert_eq!(spec.heldout[0].name, "h0");
+    }
+
+    #[test]
+    fn hash_expected_hides_heldout_answers_but_still_grades() {
+        let inputs = vec!["2".to_string(), "3".to_string(), "5".to_string()];
+        let spec = record("awk {print($1*$1)}", &inputs, 1, true).unwrap();
+        // Visible stays plaintext (it's an example the agent sees).
+        assert_eq!(spec.visible[0].expected, "4");
+        // Held-out answers are hashed — the plaintext answer is not stored as-is.
+        assert!(spec.heldout[0].expected.starts_with("blake3:"));
+        assert_ne!(spec.heldout[0].expected, "9");
+        assert_eq!(spec.heldout[0].expected_display(), "<hashed>");
+        // But the hashed case still matches the correct output and nothing else.
+        assert!(spec.heldout[0].matches("9")); // input 3 -> 9
+        assert!(!spec.heldout[0].matches("8"));
     }
 }

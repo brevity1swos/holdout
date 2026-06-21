@@ -7,7 +7,38 @@ use crate::error::HoldoutError;
 pub struct Case {
     pub name: String,
     pub input: String,
+    /// The expected output, OR — when prefixed `blake3:` — its BLAKE3 hash.
+    /// Hashing (via `record --hash-expected`) keeps the held-out answers out of
+    /// the oracle file, so an agent that can read the file still cannot read or
+    /// reproduce the answers without actually computing the right output.
     pub expected: String,
+}
+
+/// Prefix marking an `expected` value as a BLAKE3 hex hash rather than literal.
+pub const HASH_PREFIX: &str = "blake3:";
+
+pub fn hash_expected(output: &str) -> String {
+    format!("{HASH_PREFIX}{}", blake3::hash(output.as_bytes()).to_hex())
+}
+
+impl Case {
+    /// True if `actual` is the expected output — comparing against the stored
+    /// hash when this case is hashed, else against the literal.
+    pub fn matches(&self, actual: &str) -> bool {
+        match self.expected.strip_prefix(HASH_PREFIX) {
+            Some(hex) => blake3::hash(actual.as_bytes()).to_hex().as_str() == hex,
+            None => actual == self.expected,
+        }
+    }
+
+    /// What to show as "expected" in a divergence — never leak the hash.
+    pub fn expected_display(&self) -> &str {
+        if self.expected.starts_with(HASH_PREFIX) {
+            "<hashed>"
+        } else {
+            &self.expected
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
