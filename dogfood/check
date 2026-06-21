@@ -1,0 +1,21 @@
+#!/bin/sh
+# Verify a candidate column-label implementation against the hidden holdout oracle.
+# Usage: ./check candidate.py
+# Do NOT read reference.py or gen.py — those are the hidden oracle. Use ONLY this
+# command's output (pass/fail + first divergence) to fix your candidate.
+# Every invocation is logged to check.log (ground-truth iteration history).
+dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+out=$("$dir/../target/debug/holdout" verify \
+  --reference "python3 $dir/reference.py" \
+  --candidate "python3 $1" \
+  --generator "python3 $dir/gen.py")
+code=$?
+{
+  echo "===== check $(date '+%H:%M:%S') exit=$code ====="
+  echo "--- candidate ---"
+  cat "$1"
+  echo "--- holdout said ---"
+  echo "$out"
+} >> "$dir/check.log"
+echo "$out"
+exit $code

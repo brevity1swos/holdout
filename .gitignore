@@ -2,3 +2,5 @@
 /.omc
 benchmark/quixbugs-data/
 benchmark/.work/
+/dogfood/candidate.py
+/dogfood/check.log
