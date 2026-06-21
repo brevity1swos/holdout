@@ -1,0 +1,7 @@
+{
+  "instance_id": "demo__calc-1",
+  "repo": "demo/calc",
+  "note": "Synthetic SWE-bench-shaped instance: same FAIL_TO_PASS / PASS_TO_PASS structure as a real instance, but tiny and pytest-runnable with no Docker. The candidate that passes FAIL_TO_PASS while breaking a PASS_TO_PASS is the behaviorally-wrong 'solved' patch (false-green) the adapter exists to catch.",
+  "FAIL_TO_PASS": ["test_calc.py::test_upper"],
+  "PASS_TO_PASS": ["test_calc.py::test_lower", "test_calc.py::test_within"]
+}
